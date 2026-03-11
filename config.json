@@ -1,6 +1,3 @@
 {
-    "AI_API_URL": "https://api.deepseek.com",
-    "AI_API_KEY": "sk-0b936cb262ca45718cdfe61352c83038",
-    "AI_API_MODEL": "deepseek-chat",
     "timeout": 60
 }
