@@ -11,3 +11,4 @@ wheels/
 .config
 env/
 venv/
+webui/

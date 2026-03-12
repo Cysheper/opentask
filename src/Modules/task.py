@@ -32,6 +32,8 @@ class Task:
     completed: bool = False
     trigger_count: int = 0
     target_count: int = 0
+    timeout: int | None = None
+    running: bool = False
     
     is_send: bool = False
     send_url: str | None = None
@@ -57,6 +59,8 @@ class Task:
             self.completed,
             self.trigger_count,
             self.target_count,
+            self.timeout,
+            self.running,
             self.is_send,
             self.send_url,
             self.send_token,
@@ -74,6 +78,8 @@ class Task:
             "completed": self.completed,
             "trigger_count": self.trigger_count,
             "target_count": self.target_count,
+            "timeout": self.timeout,
+            "running": self.running,
             "is_send": self.is_send,
             "send_url": self.send_url,
             "send_token": self.send_token

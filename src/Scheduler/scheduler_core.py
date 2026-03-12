@@ -6,7 +6,7 @@ from Modules.task import Task, Trigger_time
 import time
 from Worker.worker_core import Worker
 from Modules.Log import logging
-import json
+from Tools.task_manager import TaskManager
 
 
 """
@@ -23,31 +23,26 @@ class Scheduler:
     def __init__(self):
         self.task_queue = Queue()
         self.worker = Worker()
-        self.path = pathlib.Path("./Tasks/tasks_list.json")
-        if not self.path.exists():
-            logging.info("tasks_list.json not found, creating tasks table in database.")
-            with open(self.path, "w") as f:
-                f.write("[]")
-        else:   
-            logging.info("Getted tasks from tasks_list.json.")
-        Thread(target=self.get_tasks, daemon=True).start()
-        Thread(target=self.execute_tasks, daemon=True).start()
-
+        self.save = TaskManager.save_tasks
+        self.load = TaskManager.load_tasks
+        self.get_tasks_thread = Thread(target=self.get_tasks, daemon=True)
+        self.execute_tasks_thread = Thread(target=self.execute_tasks, daemon=True)
+        self.get_tasks_thread.start()
+        self.execute_tasks_thread.start()
     """
     Continuously fetches tasks from the database and checks if they 
     are due for execution based on their trigger times.
     """
     def get_tasks(self) -> None:
-
         while True:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
 
             for task in tasks:
                 if task.completed == True:
                     continue
                 if task.immediately == True:
                     task.immediately = False
-                    self.save_tasks(tasks)
+                    self.save(tasks)
                     self.task_queue.put(task)
                     continue
 
@@ -71,7 +66,6 @@ class Scheduler:
     Checks if the current time matches the specified trigger time.
     """
     def check_trigger_time(self, trigger: Trigger_time) -> bool:
-
         now = datetime.now()
         if trigger.mouth and now.month not in trigger.mouth:
             return False
@@ -94,54 +88,23 @@ class Scheduler:
     def execute_tasks(self) -> None:
         while True:
             task: Task = self.task_queue.get()
-            self.worker.run(task)
+            self.worker.push(task)
             self.task_queue.task_done() # Mark the task as done in the queue    
             try:
-                tasks: list[Task] = self.load_tasks()
-                
+                tasks: list[Task] = self.load()
                 for t in tasks:
                     if t.id == task.id:
                         t.trigger_count += 1
-                        logging.info(f"Task executed and updated: {task.title}, trigger count: {task.trigger_count + 1}")
+                        logging.info(f"Task executed and updated: {task.title}, triggered count: {task.trigger_count + 1}, timeout: {task.timeout}")
                         if task.target_count > 0 and task.trigger_count + 1 >= task.target_count:
                             t.completed = True
                             logging.info(f"Task completed: {task.title}")   
                         break
-                self.save_tasks(tasks)
+                self.save(tasks)
 
             except Exception as e:
                 logging.error(f"Failed to update task: {task.title} with error: {e}")
 
-    """
-    Loads tasks from the tasks_list.json file and returns them as a list of Task objects.
-    Returns:
-        list[Task]: A list of Task objects loaded from the database.
-    """
-    def load_tasks(self) -> list[Task]:
-        try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                tasks = list(json.load(f))
-            # logging.info(f"Loaded {len(tasks)} tasks successfully.")
-            return [Task(**dict(task)) for task in tasks]
-        except Exception as e:
-            logging.error(f"Failed to load tasks with error: {e}")
-            return []
-        
-
-    """
-    Saves a list of Task objects to the tasks_list.json file.
-    
-    Args:
-        tasks (list[Task]): The list of Task objects to be saved.
-    """
-    def save_tasks(self, tasks: list[Task]) -> None:
-        try:
-            tasks_dict = [task.to_dict() for task in tasks]
-            with open(self.path, "w", encoding="utf-8") as f:
-                json.dump(tasks_dict, f, indent=4)
-            # logging.info("Tasks saved successfully.")
-        except Exception as e:
-            logging.error(f"Failed to save tasks with error: {e}")
 
 
     """
@@ -151,10 +114,10 @@ class Scheduler:
        
         logging.info(f"Adding task: {task.title}")
         try:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
             task.id = max([t.id for t in tasks], default=0) + 1
             tasks.append(task)
-            self.save_tasks(tasks)
+            self.save(tasks)
             logging.info(f"Task added: {task.title}")
         except Exception as e:
             logging.error(f"Failed to add task: {task.title} with error: {e}")
@@ -167,7 +130,21 @@ class Scheduler:
     """
     def check_health(self):
         try:
-            return self.load_tasks() is not None
+            # 检查get_tasks线程和execute_tasks线程是否存活
+            # Check if the background threads are alive
+            
+            if not self.get_tasks_thread.is_alive():
+                logging.error("Health check failed: get_tasks_thread is not alive.")
+                return False
+            if not self.execute_tasks_thread.is_alive():
+                logging.error("Health check failed: execute_tasks_thread is not alive.")
+                return False
+            # Basic health check: ensure we can load tasks
+            if self.load() is None:
+                logging.error("Health check failed: Unable to load tasks.")
+                return False
+
+            return True
         except Exception as e:
             logging.error(f"Health check failed with error: {e}")
             return False
@@ -180,7 +157,7 @@ class Scheduler:
     """
     def get_all_tasks(self) -> list[Task]:
         try:
-            tasks = self.load_tasks()
+            tasks = self.load()
             logging.info(f"Retrieved {len(tasks)} tasks successfully.")
             return tasks
         except Exception as e:
@@ -189,46 +166,46 @@ class Scheduler:
         
     def set_done(self, task_id: int):
         try:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
             for task in tasks:
                 if task.id == task_id:
                     task.completed = True
                     logging.info(f"Task with id {task_id} marked as done.")
                     break
-            self.save_tasks(tasks)
+            self.save(tasks)
         except Exception as e:
             logging.error(f"Failed to mark task with id {task_id} as done with error: {e}")
 
     def set_undone(self, task_id: int):
         try:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
             for task in tasks:
                 if task.id == task_id:
                     task.completed = False
                     logging.info(f"Task with id {task_id} marked as undone.")
                     break
-            self.save_tasks(tasks)
+            self.save(tasks)
         except Exception as e:
             logging.error(f"Failed to mark task with id {task_id} as undone with error: {e}")
 
     def delete_task(self, task_id: int):
         try:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
             tasks = [task for task in tasks if task.id != task_id]
-            self.save_tasks(tasks)
+            self.save(tasks)
             logging.info(f"Task with id {task_id} deleted successfully.")
         except Exception as e:
             logging.error(f"Failed to delete task with id {task_id} with error: {e}")
 
     def update_task(self, task_id: int, updated_task: Task):
         try:
-            tasks: list[Task] = self.load_tasks()
+            tasks: list[Task] = self.load()
             for i, task in enumerate(tasks):
                 if task.id == task_id:
                     updated_task.id = task_id  # Ensure the ID remains unchanged
                     tasks[i] = updated_task
                     break
-            self.save_tasks(tasks)
+            self.save(tasks)
             logging.info(f"Task with id {task_id} updated successfully.")
         except Exception as e:
             logging.error(f"Failed to update task with id {task_id} with error: {e}")

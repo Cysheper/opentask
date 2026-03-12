@@ -1,4 +1,3 @@
-import requests
 from Scheduler.scheduler_core import Scheduler
 from fastapi import FastAPI
 from Modules.task import Task
@@ -52,6 +51,7 @@ def add_task(task: dict):
             code=task["code"],
             trigger_time_list=task.get("trigger_time_list", []),
             immediately=task.get("immediately", False),
+            running=task.get("running", False),
             is_send=task.get("is_send", False),
             send_url=task.get("send_url", ""),
             send_token=task.get("send_token", "")
