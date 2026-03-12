@@ -11,6 +11,14 @@ class Worker:
     def __init__(self):
         pass
 
+    """
+    Executes the code associated with a given task in a separate process to ensure isolation and prevent blocking the main thread.
+     - The code is written to a temporary Python file named after the function being executed.
+     - The function is then imported and executed, with the result sent back to the parent process via a multiprocessing Queue.
+     - After execution, the temporary file is deleted and the module is removed from sys.modules to clean up the environment.
+     - If the task is marked to send results, the result is sent to the specified URL with the provided token for authentication.
+     - The method also handles timeouts and logs relevant information and errors throughout the execution process.
+    """
     def calculate(self, task: Task, q: Queue):
         logging.info("Starting task execution.")
         function_name = task.code.split(' ')[1].split('(')[0].strip()  # Extract function name from code

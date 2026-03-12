@@ -4,7 +4,7 @@
         "title": "Task 1",
         "description": "This is the first task.",
         "time": "2024-06-30 10:00:00",
-        "code": "def task1():\n    return 'Executing Task 1'",
+        "code": "def task1():\n    while True: pass\n    return 'Executing Task 1'",
         "trigger_time_list": [
             {
                 "mouth": [
