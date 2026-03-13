@@ -1,6 +1,5 @@
 from queue import Queue
 from threading import Thread
-import pathlib
 from datetime import datetime
 from Modules.task import Task, Trigger_time
 import time
@@ -143,6 +142,17 @@ class Scheduler:
             if self.load() is None:
                 logging.error("Health check failed: Unable to load tasks.")
                 return False
+            if self.save is None or self.load is None:
+                logging.error("Health check failed: Save or load function is not defined.")
+                return False
+            
+            if self.worker is None:
+                logging.error("Health check failed: Worker instance is not initialized.")
+                return False
+            
+            if self.worker.check_health() == False:
+                logging.error("Health check failed: Worker is not healthy.")
+                return False
 
             return True
         except Exception as e:
@@ -164,6 +174,19 @@ class Scheduler:
             logging.error(f"Failed to retrieve tasks with error: {e}")
             return []
         
+    def get_task_by_id(self, task_id: int) -> Task | None:
+        try:
+            tasks: list[Task] = self.load()
+            for task in tasks:
+                if task.id == task_id:
+                    logging.info(f"Retrieved task with id {task_id} successfully.")
+                    return task
+            logging.warning(f"Task with id {task_id} not found.")
+            return None
+        except Exception as e:
+            logging.error(f"Failed to retrieve task with id {task_id} with error: {e}")
+            return None
+
     def set_done(self, task_id: int):
         try:
             tasks: list[Task] = self.load()

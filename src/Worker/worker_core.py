@@ -12,11 +12,13 @@ from Tools.task_manager import TaskManager
 class Worker:
     def __init__(self):
         self.save = TaskManager.save_tasks
+        self.save_single = TaskManager.save_single_task
         self.load = TaskManager.load_tasks
+        self.processes = {}  # 用于跟踪正在运行的子进程，key为function_name，value为Process对象
 
     def calculate(self, task: Task, q: Queue):
         logging.info("Starting task execution.")
-        function_name = task.code.split(' ')[1].split('(')[0].strip()  # Extract function name from code
+        function_name = task.function_name
         
         file_path = Path(f"./Tasks/{function_name}.py")
         file_path.write_text(task.code)  # Write the code to a *.py file
@@ -48,15 +50,18 @@ class Worker:
 
     def push(self, task: Task) -> None:
         try:
+            task.running = True
+            self.save_single(task)
             Thread(target=self.run, args=(task,), daemon=True).start()
         except Exception as e:
             logging.error(f"Failed to start thread for task {task.title} with error: {e}")  
 
     def run(self, task: Task) -> None:
-        function_name = task.code.split(' ')[1].split('(')[0].strip()
+        function_name = task.function_name
         try:
             q = MPQueue()  # Use multiprocessing Queue for inter-process communication
             p = Process(target=self.calculate, args=(task, q), daemon=True)
+            self.processes[function_name] = p  # Track the process
             p.start()
             
             # Wait for the process to finish or timeout 
@@ -80,8 +85,42 @@ class Worker:
             if task.is_send:
                 self.send_result(result, task)
 
+            task.running = False
+            self.save_single(task)  # Update task status in storage
         except Exception as e:
             logging.error(f"Task execution failed with error: {e}")
+
+    def stop(self, task: Task) -> None:
+        # 目前的设计是子进程在执行时父进程无法直接访问它的状态，所以无法实现真正的“停止”功能。
+        # 只能通过设置一个标志位或者使用更复杂的进程间通信机制来实现。
+        # 这里我们暂时只能通过超时机制来间接实现停止功能。
+        function_name = task.function_name
+        if function_name in self.processes:
+            p = self.processes[function_name]
+            if p.is_alive():
+                p.terminate()
+                p.join()
+                if p.is_alive():
+                    logging.warning(f"Failed to terminate process for task {task.title}.")
+                    p.kill()  # 强制杀死进程
+                    p.join()
+                logging.info(f"Task {task.title} stopped successfully.")
+            del self.processes[function_name]
+
+    def check_health(self) -> bool:
+        tasks = self.load()
+        for task in tasks:
+            if task.running:
+                function_name = task.function_name
+                if function_name in self.processes:
+                    p = self.processes[function_name]
+                    if not p.is_alive():
+                        logging.warning(f"Health check: Task {task.title} is marked as running but process is not alive.")
+                        return False
+                else:
+                    logging.warning(f"Health check: Task {task.title} is marked as running but no process found.")
+                    return False
+        return True
 
 
     def send_result(self, result, task: Task):

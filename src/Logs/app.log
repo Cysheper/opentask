@@ -1,0 +1,5 @@
+[2026-03-13 11:15:04] [INFO] [main.py:218] - Starting OpenTask API...
+[2026-03-13 11:27:37] [INFO] [main.py:5] - OpenTask started successfully.
+[2026-03-13 11:29:05] [INFO] [router.py:24] - Health check passed: Scheduler is healthy.
+[2026-03-13 11:30:05] [INFO] [main.py:5] - OpenTask started successfully.
+[2026-03-13 11:30:13] [INFO] [router.py:24] - Health check passed: Scheduler is healthy.

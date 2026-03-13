@@ -27,6 +27,8 @@ class Task:
     time: str
 
     code: str
+    function_name: str = field(init=False)
+
     trigger_time_list: list[Trigger_time] = field(default_factory=list)
     immediately: bool = False
     completed: bool = False
@@ -42,7 +44,17 @@ class Task:
     def __post_init__(self):
         if isinstance(self.trigger_time_list, str):
             self.trigger_time_list = eval(self.trigger_time_list)
+        name = self.get_function_name()
+        if name is None:
+            raise ValueError("Failed to extract function name from code.")
+        self.function_name = name
 
+    def get_function_name(self) -> str | None:
+        a = list(self.code.split(' '))
+        for i in a:
+            if i.strip() == "def":
+                return a[a.index(i) + 1].split('(')[0].strip()
+        return None
 
     def done(self):
         self.completed = True

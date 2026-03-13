@@ -1,4 +1,4 @@
-from Modules.task import Task, Trigger_time
+from Modules.task import Task
 import json
 from Modules.Log import logging
 import pathlib
@@ -52,5 +52,20 @@ class TaskManager:
             # 直接通过类访问变量进行清理
             if cls.temp_file.exists():
                 cls.temp_file.unlink()
+
+    @classmethod
+    def save_single_task(cls, task: Task) -> None:
+        try:
+            tasks = cls.load_tasks()
+            # 更新或添加任务
+            for i, existing_task in enumerate(tasks):
+                if existing_task.id == task.id:
+                    tasks[i] = task
+                    break
+            else:
+                tasks.append(task)
+            cls.save_tasks(tasks)
+        except Exception as e:
+            logging.error(f"Failed to save single task with id {task.id}: {e}")
 
     
